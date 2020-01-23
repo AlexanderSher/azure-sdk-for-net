@@ -7,13 +7,13 @@ using Azure.Core.Pipeline;
 
 namespace Azure.Core.Testing
 {
-    public class RetryTransport : HttpPipelineTransport
+    public class FailureSimulationTransport : HttpPipelineTransport
     {
         private readonly HttpPipelineTransport _innerTransport;
         private readonly SimulateRequestRetryAttribute _simulateRequestRetry;
         private readonly HashSet<string> _retriedMessages;
 
-        public RetryTransport(HttpPipelineTransport innerTransport)
+        public FailureSimulationTransport(HttpPipelineTransport innerTransport)
         {
             _innerTransport = innerTransport;
             _simulateRequestRetry = SimulateRequestRetryAttribute.Current ?? new SimulateRequestRetryAttribute();
