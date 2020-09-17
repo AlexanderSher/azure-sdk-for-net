@@ -7,19 +7,19 @@ using System.Threading.Tasks;
 namespace Azure.Identity
 {
     /// <summary>
-    /// X
+    /// Token storage base class
     /// </summary>
     public abstract class TokenStorage
     {
         /// <summary>
-        /// X
+        /// Registers cache with storage
         /// </summary>
         /// <param name="tokenCache"></param>
         /// <param name="cancellationToken"></param>
         public abstract void Register(TokenCache tokenCache, CancellationToken cancellationToken);
 
         /// <summary>
-        /// X
+        /// Registers cache with storage
         /// </summary>
         /// <param name="tokenCache"></param>
         /// <param name="cancellationToken"></param>

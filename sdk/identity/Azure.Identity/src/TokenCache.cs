@@ -8,10 +8,12 @@ using Microsoft.Identity.Client;
 namespace Azure.Identity
 {
     /// <summary>
-    /// X
+    /// Token cache
     /// </summary>
     public class TokenCache
     {
+        private readonly object _syncObj = new object();
+
         internal ITokenCache Cache { get; }
 
         internal TokenCache(ITokenCache tokenCache)
@@ -19,49 +21,65 @@ namespace Azure.Identity
             Cache = tokenCache;
         }
 
-        public void SetCacheData(byte[] data)
+        /// <summary>
+        /// Resets token cache next time it is used
+        /// </summary>
+        /// <param name="data"></param>
+        public void Reset(byte[] data)
         {
-            Cache.SetBeforeAccess(args => args.TokenCache.DeserializeMsalV3(data, shouldClearExistingCache: true));
+            lock (_syncObj)
+            {
+                Cache.SetBeforeAccess(OnResetCallback);
+            }
+
+            void OnResetCallback(TokenCacheNotificationArgs args)
+            {
+                lock (_syncObj)
+                {
+                    Cache.SetBeforeAccess(a => { });
+                }
+                args.TokenCache.DeserializeMsalV3(data, shouldClearExistingCache: true);
+            }
         }
 
         /// <summary>
-        /// X
+        /// Sets a delegate to be called when cache changes
         /// </summary>
         /// <param name="onCacheChanged"></param>
-        public void SetCacheChanged(Action<TokenCache, byte[]> onCacheChanged) =>
-            Cache.SetAfterAccess(args =>
+        public void SetOnCacheChanged(Action<byte[]> onCacheChanged)
+        {
+            lock (_syncObj)
+            {
+                Cache.SetAfterAccess(OnCacheChangedCallback);
+            }
+
+            void OnCacheChangedCallback(TokenCacheNotificationArgs args)
             {
                 if (args.HasStateChanged)
                 {
-                    onCacheChanged(this, args.TokenCache.SerializeMsalV3());
+                    onCacheChanged(args.TokenCache.SerializeMsalV3());
                 }
-            });
+            }
+        }
 
         /// <summary>
-        /// Set
-        /// </summary>
-        /// <param name="getCacheData"></param>
-        public void SetBeforeCacheCreated(Func<TokenCache, byte[]> getCacheData)
-            => Cache.SetBeforeAccess(args => args.TokenCache.DeserializeMsalV3(getCacheData(this), shouldClearExistingCache: true));
-
-        /// <summary>
-        /// X
+        /// Sets a delegate to be called when cache changes
         /// </summary>
         /// <param name="onCacheChangedAsync"></param>
-        public void SetCacheChangedAsync(Func<TokenCache, byte[], Task> onCacheChangedAsync) =>
-            Cache.SetAfterAccessAsync(async args =>
+        public void SetOnCacheChangedAsync(Func<byte[], Task> onCacheChangedAsync)
+        {
+            lock (_syncObj)
+            {
+                Cache.SetAfterAccessAsync(OnCacheChangedCallback);
+            }
+
+            async Task OnCacheChangedCallback(TokenCacheNotificationArgs args)
             {
                 if (args.HasStateChanged)
                 {
-                    await onCacheChangedAsync(this, args.TokenCache.SerializeMsalV3()).ConfigureAwait(false);
+                    await onCacheChangedAsync(args.TokenCache.SerializeMsalV3()).ConfigureAwait(false);
                 }
-            });
-
-        /// <summary>
-        /// X
-        /// </summary>
-        /// <param name="getCacheDataAsync"></param>
-        public void SetBeforeCacheCreatedAsync(Func<TokenCache, Task<byte[]>> getCacheDataAsync)
-            => Cache.SetBeforeAccessAsync(async args => args.TokenCache.DeserializeMsalV3(await getCacheDataAsync(this).ConfigureAwait(false), shouldClearExistingCache: true));
+            }
+        }
     }
 }

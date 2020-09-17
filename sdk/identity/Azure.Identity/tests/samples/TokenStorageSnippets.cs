@@ -41,51 +41,40 @@ namespace Azure.Identity.Samples
         #region Snippet:Identity_TokenCache_CustomPersistence_Usage
         public static void Identity_TokenStorage_CustomPersistence()
         {
-            var tokenStorage = new CustomTokenStorage();
-            var credential = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { TokenStorage = tokenStorage });
+            var customStorage = new CustomTokenStorage();
+            var credential = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { TokenStorage = customStorage });
         }
 
         public class CustomTokenStorage : TokenStorage
         {
             public override void Register(TokenCache tokenCache, CancellationToken cancellationToken)
             {
-                tokenCache.SetCacheChanged(WriteFromCacheToFile);
-                tokenCache.SetBeforeCacheCreated(WriteFromFileToCache);
+                tokenCache.SetOnCacheChanged(WriteFromCacheToFile);
+
+                using var cacheStream = new FileStream(TokenCachePath, FileMode.OpenOrCreate, FileAccess.Read);
+                var data = new byte[cacheStream.Length - cacheStream.Position];
+                cacheStream.Read(data, 0, data.Length);
             }
 
-            public override Task RegisterAsync(TokenCache tokenCache, CancellationToken cancellationToken)
+            public override async Task RegisterAsync(TokenCache tokenCache, CancellationToken cancellationToken)
             {
-                tokenCache.SetCacheChangedAsync(WriteFromCacheToFileAsync);
-                tokenCache.SetBeforeCacheCreatedAsync(WriteFromFileToCacheAsync);
-                return Task.CompletedTask;
+                tokenCache.SetOnCacheChangedAsync(WriteFromCacheToFileAsync);
+
+                using var cacheStream = new FileStream(TokenCachePath, FileMode.OpenOrCreate, FileAccess.Read);
+                var data = new byte[cacheStream.Length - cacheStream.Position];
+                await cacheStream.ReadAsync(data, 0, data.Length, cancellationToken).ConfigureAwait(false);
             }
 
-            private void WriteFromCacheToFile(TokenCache tokenCache, byte[] data)
+            private void WriteFromCacheToFile(byte[] data)
             {
                 using var cacheStream = new FileStream(TokenCachePath, FileMode.Create, FileAccess.Write);
                 cacheStream.Write(data, 0, data.Length);
             }
 
-            private byte[] WriteFromFileToCache(TokenCache tokenCache)
-            {
-                using var cacheStream = new FileStream(TokenCachePath, FileMode.OpenOrCreate, FileAccess.Read);
-                var data = new byte[cacheStream.Length - cacheStream.Position];
-                cacheStream.Read(data, 0, data.Length);
-                return data;
-            }
-
-            private async Task WriteFromCacheToFileAsync(TokenCache tokenCache, byte[] data)
+            private async Task WriteFromCacheToFileAsync(byte[] data)
             {
                 using var cacheStream = new FileStream(TokenCachePath, FileMode.Create, FileAccess.Write);
                 await cacheStream.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
-            }
-
-            private async Task<byte[]> WriteFromFileToCacheAsync(TokenCache tokenCache)
-            {
-                using var cacheStream = new FileStream(TokenCachePath, FileMode.OpenOrCreate, FileAccess.Read);
-                var data = new byte[cacheStream.Length - cacheStream.Position];
-                await cacheStream.ReadAsync(data, 0, data.Length).ConfigureAwait(false);
-                return data;
             }
         }
         #endregion
