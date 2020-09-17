@@ -26,10 +26,8 @@ namespace Azure.Identity
         public AuthenticationRecord AuthenticationRecord { get; set; }
 
         /// <summary>
-        /// If set to true the credential will fall back to storing tokens in an unencrypted file if no OS level user encryption is available.
+        /// Specifies the <see cref="TokenStorage"/> to be used by the credential.
         /// </summary>
-        public bool AllowUnencryptedCache { get; set; }
-
-        bool ITokenCacheOptions.EnablePersistentCache => true;
+        public TokenStorage TokenStorage { get; } = new PersistentTokenStorage();
     }
 }

@@ -73,17 +73,42 @@ namespace Azure.Identity.Tests
         [Ignore("This test is an integration test which can only be run with user interaction")]
         public async Task AuthenticateWithSharedTokenCacheAsync()
         {
-            var cred = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { EnablePersistentCache = true });
+            var cred = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { TokenStorage = new PersistentTokenStorage() });
 
             // this should pop browser
             AuthenticationRecord record = await cred.AuthenticateAsync();
 
-            var cred2 = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { EnablePersistentCache = true, AuthenticationRecord = record });
+            var cred2 = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { TokenStorage = new PersistentTokenStorage(), AuthenticationRecord = record });
 
             // this should not pop browser
             AccessToken token = await cred2.GetTokenAsync(new TokenRequestContext(new string[] { "https://vault.azure.net/.default" })).ConfigureAwait(false);
 
             Assert.NotNull(token.Token);
+        }
+
+        [Test]
+        [Ignore("This test is an integration test which can only be run with user interaction")]
+        public async Task AuthenticateWithCustomTokenCacheAsync()
+        {
+            var tokenStorage = new CustomTokenStorage();
+
+            var cred = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { TokenStorage = tokenStorage });
+
+            // this should pop browser
+            AuthenticationRecord record = await cred.AuthenticateAsync();
+
+            var cred2 = new InteractiveBrowserCredential(new InteractiveBrowserCredentialOptions { TokenStorage = tokenStorage, AuthenticationRecord = record });
+
+            // this should not pop browser
+            AccessToken token = await cred2.GetTokenAsync(new TokenRequestContext(new string[] { "https://vault.azure.net/.default" })).ConfigureAwait(false);
+
+            Assert.NotNull(token.Token);
+        }
+
+        private class CustomTokenStorage : TokenStorage
+        {
+            public override void Register(TokenCache tokenCache, CancellationToken cancellationToken) { }
+            public override Task RegisterAsync(TokenCache tokenCache, CancellationToken cancellationToken) => Task.CompletedTask;
         }
     }
 }

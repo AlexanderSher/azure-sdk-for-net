@@ -9,13 +9,8 @@ using Microsoft.Identity.Client.Extensions.Msal;
 
 namespace Azure.Identity
 {
-    internal abstract class MsalClientBase<TClient>
-        where TClient : IClientApplicationBase
+    internal abstract class MsalClientBase<TClient> where TClient : IClientApplicationBase
     {
-        // we are creating the MsalCacheHelper with a random guid based clientId to work around issue https://github.com/AzureAD/microsoft-authentication-extensions-for-dotnet/issues/98
-        // This does not impact the functionality of the cacheHelper as the ClientId is only used to iterate accounts in the cache not for authentication purposes.
-        private static readonly string s_msalCacheClientId = Guid.NewGuid().ToString();
-
         private readonly AsyncLockWithValue<TClient> _clientAsyncLock;
 
         /// <summary>
@@ -33,9 +28,7 @@ namespace Azure.Identity
 
             ClientId = clientId;
 
-            EnablePersistentCache = cacheOptions?.EnablePersistentCache ?? false;
-
-            AllowUnencryptedCache = cacheOptions?.AllowUnencryptedCache ?? false;
+            TokenStorage = cacheOptions?.TokenStorage;
 
             _clientAsyncLock = new AsyncLockWithValue<TClient>();
         }
@@ -44,9 +37,7 @@ namespace Azure.Identity
 
         internal string ClientId { get; }
 
-        internal bool EnablePersistentCache { get; }
-
-        internal bool AllowUnencryptedCache { get; }
+        internal TokenStorage TokenStorage { get; }
 
         protected CredentialPipeline Pipeline { get; }
 
@@ -62,41 +53,16 @@ namespace Azure.Identity
 
             var client = await CreateClientAsync(async, cancellationToken).ConfigureAwait(false);
 
-            if (EnablePersistentCache)
+            if (TokenStorage != default)
             {
-                MsalCacheHelper cacheHelper;
-
-                StorageCreationProperties storageProperties = new StorageCreationPropertiesBuilder(Constants.DefaultMsalTokenCacheName, Constants.DefaultMsalTokenCacheDirectory, s_msalCacheClientId)
-                    .WithMacKeyChain(Constants.DefaultMsalTokenCacheKeychainService, Constants.DefaultMsalTokenCacheKeychainAccount)
-                    .WithLinuxKeyring(Constants.DefaultMsalTokenCacheKeyringSchema, Constants.DefaultMsalTokenCacheKeyringCollection, Constants.DefaultMsalTokenCacheKeyringLabel, Constants.DefaultMsaltokenCacheKeyringAttribute1, Constants.DefaultMsaltokenCacheKeyringAttribute2)
-                    .Build();
-
-                try
+                if (async)
                 {
-                    cacheHelper = await CreateCacheHelper(storageProperties, async).ConfigureAwait(false);
-
-                    cacheHelper.VerifyPersistence();
+                    await TokenStorage.RegisterAsync(new TokenCache(client.UserTokenCache), cancellationToken).ConfigureAwait(false);
                 }
-                catch (MsalCachePersistenceException)
+                else
                 {
-                    if (AllowUnencryptedCache)
-                    {
-                        storageProperties = new StorageCreationPropertiesBuilder(Constants.DefaultMsalTokenCacheName, Constants.DefaultMsalTokenCacheDirectory, s_msalCacheClientId)
-                            .WithMacKeyChain(Constants.DefaultMsalTokenCacheKeychainService, Constants.DefaultMsalTokenCacheKeychainAccount)
-                            .WithLinuxUnprotectedFile()
-                            .Build();
-
-                        cacheHelper = await CreateCacheHelper(storageProperties, async).ConfigureAwait(false);
-
-                        cacheHelper.VerifyPersistence();
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    TokenStorage.Register(new TokenCache(client.UserTokenCache), cancellationToken);
                 }
-
-                cacheHelper.RegisterCache(client.UserTokenCache);
             }
 
             asyncLock.SetValue(client);
