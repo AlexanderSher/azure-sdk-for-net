@@ -189,37 +189,10 @@ namespace Azure.Communication.PhoneNumbers
         /// <param name="cancellationToken"> The cancellation token to use. </param>
         public virtual AsyncPageable<PurchasedPhoneNumber> ListPhoneNumbersAsync(int? skip = null, int? top = null, CancellationToken cancellationToken = default)
         {
-            async Task<Page<PurchasedPhoneNumber>> FirstPageFunc(int? pageSizeHint)
-            {
-                using var scope = _clientDiagnostics.CreateScope("InternalPhoneNumbersClient.ListPhoneNumbers");
-                scope.Start();
-                try
-                {
-                    var response = await RestClient.ListPhoneNumbersAsync(skip, top, cancellationToken).ConfigureAwait(false);
-                    return Page.FromValues(response.Value.PhoneNumbers, response.Value.NextLink, response.GetRawResponse());
-                }
-                catch (Exception e)
-                {
-                    scope.Failed(e);
-                    throw;
-                }
-            }
-            async Task<Page<PurchasedPhoneNumber>> NextPageFunc(string nextLink, int? pageSizeHint)
-            {
-                using var scope = _clientDiagnostics.CreateScope("InternalPhoneNumbersClient.ListPhoneNumbers");
-                scope.Start();
-                try
-                {
-                    var response = await RestClient.ListPhoneNumbersNextPageAsync(nextLink, skip, top, cancellationToken).ConfigureAwait(false);
-                    return Page.FromValues(response.Value.PhoneNumbers, response.Value.NextLink, response.GetRawResponse());
-                }
-                catch (Exception e)
-                {
-                    scope.Failed(e);
-                    throw;
-                }
-            }
-            return PageableHelpers.CreateAsyncEnumerable(FirstPageFunc, NextPageFunc);
+            var context = cancellationToken.CanBeCanceled ? new RequestContext { CancellationToken = cancellationToken } : null;
+            HttpMessage FirstPageRequest(int? pageSizeHint) => RestClient.CreateListPhoneNumbersRequest(skip, top);
+            HttpMessage NextPageRequest(int? pageSizeHint, string nextLink) => RestClient.CreateListPhoneNumbersNextPageRequest(nextLink, skip, top);
+            return PageableHelpers.CreateAsyncPageable(FirstPageRequest, NextPageRequest, PurchasedPhoneNumber.DeserializePurchasedPhoneNumber, _clientDiagnostics, _pipeline, "InternalPhoneNumbersClient.ListPhoneNumbers", "phoneNumbers", "nextLink", context);
         }
 
         /// <summary> Gets the list of all purchased phone numbers. </summary>
@@ -228,37 +201,10 @@ namespace Azure.Communication.PhoneNumbers
         /// <param name="cancellationToken"> The cancellation token to use. </param>
         public virtual Pageable<PurchasedPhoneNumber> ListPhoneNumbers(int? skip = null, int? top = null, CancellationToken cancellationToken = default)
         {
-            Page<PurchasedPhoneNumber> FirstPageFunc(int? pageSizeHint)
-            {
-                using var scope = _clientDiagnostics.CreateScope("InternalPhoneNumbersClient.ListPhoneNumbers");
-                scope.Start();
-                try
-                {
-                    var response = RestClient.ListPhoneNumbers(skip, top, cancellationToken);
-                    return Page.FromValues(response.Value.PhoneNumbers, response.Value.NextLink, response.GetRawResponse());
-                }
-                catch (Exception e)
-                {
-                    scope.Failed(e);
-                    throw;
-                }
-            }
-            Page<PurchasedPhoneNumber> NextPageFunc(string nextLink, int? pageSizeHint)
-            {
-                using var scope = _clientDiagnostics.CreateScope("InternalPhoneNumbersClient.ListPhoneNumbers");
-                scope.Start();
-                try
-                {
-                    var response = RestClient.ListPhoneNumbersNextPage(nextLink, skip, top, cancellationToken);
-                    return Page.FromValues(response.Value.PhoneNumbers, response.Value.NextLink, response.GetRawResponse());
-                }
-                catch (Exception e)
-                {
-                    scope.Failed(e);
-                    throw;
-                }
-            }
-            return PageableHelpers.CreateEnumerable(FirstPageFunc, NextPageFunc);
+            var context = cancellationToken.CanBeCanceled ? new RequestContext { CancellationToken = cancellationToken } : null;
+            HttpMessage FirstPageRequest(int? pageSizeHint) => RestClient.CreateListPhoneNumbersRequest(skip, top);
+            HttpMessage NextPageRequest(int? pageSizeHint, string nextLink) => RestClient.CreateListPhoneNumbersNextPageRequest(nextLink, skip, top);
+            return PageableHelpers.CreatePageable(FirstPageRequest, NextPageRequest, PurchasedPhoneNumber.DeserializePurchasedPhoneNumber, _clientDiagnostics, _pipeline, "InternalPhoneNumbersClient.ListPhoneNumbers", "phoneNumbers", "nextLink", context);
         }
 
         /// <summary> Search for available phone numbers to purchase. </summary>
