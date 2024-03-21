@@ -2,10 +2,15 @@
 // Licensed under the MIT License.
 
 using System;
+using System.ClientModel;
+using System.ClientModel.Primitives;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Azure.Core.Pipeline;
+using Azure.Core.Pipeline.Adapters;
 
 namespace Azure.Core
 {
@@ -14,7 +19,7 @@ namespace Azure.Core
     /// </summary>
     public sealed class HttpMessage : IDisposable
     {
-        private ArrayBackedPropertyBag<ulong, object> _propertyBag;
+        private readonly PipelineMessageAdapter _pipelineMessage;
         private Response? _response;
 
         /// <summary>
@@ -28,8 +33,10 @@ namespace Azure.Core
             Request = request;
             ResponseClassifier = responseClassifier;
             BufferResponse = true;
-            _propertyBag = new ArrayBackedPropertyBag<ulong, object>();
+            _pipelineMessage = new PipelineMessageAdapter(this);
         }
+
+        internal PipelineMessage PipelineMessage => _pipelineMessage;
 
         /// <summary>
         /// Gets the <see cref="Request"/> associated with this message.
@@ -123,11 +130,12 @@ namespace Azure.Core
         /// <returns><c>true</c> if property exists, otherwise. <c>false</c>.</returns>
         public bool TryGetProperty(string name, out object? value)
         {
-            value = null;
-            if (_propertyBag.IsEmpty || !_propertyBag.TryGetValue((ulong)typeof(MessagePropertyKey).TypeHandle.Value, out var rawValue))
+            if (!_pipelineMessage.TryGetProperty(typeof(MessagePropertyKey), out var rawValue))
             {
+                value = null;
                 return false;
             }
+
             var properties = (Dictionary<string, object>)rawValue!;
             return properties.TryGetValue(name, out value);
         }
@@ -140,15 +148,16 @@ namespace Azure.Core
         public void SetProperty(string name, object value)
         {
             Dictionary<string, object> properties;
-            if (!_propertyBag.TryGetValue((ulong)typeof(MessagePropertyKey).TypeHandle.Value, out var rawValue))
+            if (!_pipelineMessage.TryGetProperty(typeof(MessagePropertyKey), out var rawValue))
             {
                 properties = new Dictionary<string, object>();
-                _propertyBag.Set((ulong)typeof(MessagePropertyKey).TypeHandle.Value, properties);
+                _pipelineMessage.SetProperty(typeof(MessagePropertyKey), properties);
             }
             else
             {
                 properties = (Dictionary<string, object>)rawValue!;
             }
+
             properties[name] = value;
         }
 
@@ -165,7 +174,7 @@ namespace Azure.Core
         /// </remarks>
         /// <returns><c>true</c> if property exists, otherwise. <c>false</c>.</returns>
         public bool TryGetProperty(Type type, out object? value) =>
-            _propertyBag.TryGetValue((ulong)type.TypeHandle.Value, out value);
+            _pipelineMessage.TryGetProperty(type, out value);
 
         /// <summary>
         /// Sets a property that is stored with this <see cref="HttpMessage"/> instance and can be used for modifying pipeline behavior.
@@ -174,7 +183,7 @@ namespace Azure.Core
         /// <param name="type">The key for the value.</param>
         /// <param name="value">The property value.</param>
         public void SetProperty(Type type, object value) =>
-            _propertyBag.Set((ulong)type.TypeHandle.Value, value);
+            _pipelineMessage.SetProperty(type, value);
 
         /// <summary>
         /// Returns the response content stream and releases it ownership to the caller. After calling this methods using <see cref="Azure.Response.ContentStream"/> or <see cref="Azure.Response.Content"/> would result in exception.
@@ -199,15 +208,7 @@ namespace Azure.Core
         /// </summary>
         public void Dispose()
         {
-            Request.Dispose();
-            _propertyBag.Dispose();
-
-            var response = _response;
-            if (response != null)
-            {
-                _response = null;
-                response.Dispose();
-            }
+            _pipelineMessage.Dispose();
         }
 
         private class ResponseShouldNotBeUsedStream : Stream
@@ -261,9 +262,6 @@ namespace Azure.Core
             }
         }
 
-        /// <summary>
-        /// Exists as a private key entry into the <see cref="_propertyBag"/> dictionary for stashing string keyed entries in the Type keyed dictionary.
-        /// </summary>
         private class MessagePropertyKey { }
     }
 }

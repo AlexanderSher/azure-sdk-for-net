@@ -2,7 +2,11 @@
 // Licensed under the MIT License.
 
 using System;
+using System.ClientModel.Primitives;
+using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Azure.Core.Pipeline.Adapters;
 
 namespace Azure.Core.Pipeline
 {
@@ -46,5 +50,12 @@ namespace Azure.Core.Pipeline
         {
             pipeline.Span[0].Process(message, pipeline.Slice(1));
         }
+
+        /// <summary>
+        /// Creates an adapter for the PipelinePolicy instance to be used as HttpPipelinePolicy
+        /// </summary>
+        /// <param name="policy"></param>
+        /// <returns></returns>
+        public static HttpPipelinePolicy FromPipelinePolicy(PipelinePolicy policy) => new PipelinePolicyAdapter(policy);
     }
 }
