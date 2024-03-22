@@ -10,7 +10,7 @@ namespace Azure.Core.Pipeline.Adapters
     {
         private readonly HttpMessage _azureCoreMessage;
         protected internal PipelineMessageAdapter(HttpMessage azureCorePipeline)
-            : base(new RequestAdapter(azureCorePipeline.Request))
+            : base(new PipelineRequestAdapter(azureCorePipeline.Request))
         {
             _azureCoreMessage = azureCorePipeline;
         }
@@ -23,6 +23,11 @@ namespace Azure.Core.Pipeline.Adapters
             }
 
             return pipelineMessageAdapter._azureCoreMessage;
+        }
+
+        public void SetResponse(Response value)
+        {
+            Response = new PipelineResponseAdapter(value);
         }
     }
 }

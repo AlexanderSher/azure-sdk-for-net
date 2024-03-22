@@ -59,7 +59,11 @@ namespace Azure.Core
                 }
                 return _response;
             }
-            set => _response = value;
+            set
+            {
+                _response = value;
+                _pipelineMessage.SetResponse(value);
+            }
         }
 
         /// <summary>

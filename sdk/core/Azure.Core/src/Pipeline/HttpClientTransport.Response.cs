@@ -12,7 +12,7 @@ namespace Azure.Core.Pipeline
     /// <summary>
     /// An <see cref="HttpPipelineTransport"/> implementation that uses <see cref="HttpClient"/> as the transport.
     /// </summary>
-    public partial class HttpClientTransport : HttpPipelineTransport
+    public partial class HttpClientTransport
     {
         private sealed class HttpClientTransportResponse : Response
         {

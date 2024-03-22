@@ -2,10 +2,15 @@
 // Licensed under the MIT License.
 
 using System;
+using System.ClientModel.Primitives;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Azure.Core;
+using Azure.Core.Buffers;
+using Azure.Core.Pipeline;
 
 namespace Azure
 {
@@ -141,6 +146,84 @@ namespace Azure
         {
             return $"Status: {Status}, ReasonPhrase: {ReasonPhrase}";
         }
+
+        #region BufferContent implementation
+
+        internal BinaryData BufferContent(CancellationToken cancellationToken = default)
+            => BufferContentSyncOrAsync(cancellationToken, async: false).EnsureCompleted();
+
+        internal async ValueTask<BinaryData> BufferContentAsync(CancellationToken cancellationToken = default)
+            => await BufferContentSyncOrAsync(cancellationToken, async: true).ConfigureAwait(false);
+
+        /// <summary>
+        /// Provide a default implementation of the abstract
+        /// <see cref="BufferContent(CancellationToken)"/> method inherited from
+        /// <see cref="PipelineResponse"/>. This is used by any types derived
+        /// from <see cref="Response"/> that don't override the BufferContent
+        /// methods. It is intended that any high-performance implementation
+        /// will override these methods instead of using the default
+        /// implementation.
+        /// </summary>
+        private async ValueTask<BinaryData> BufferContentSyncOrAsync(CancellationToken cancellationToken, bool async)
+        {
+            // We can tell the content has been buffered and not overwritten by
+            // a call to the abstract ContentStream setter if ContentStream is
+            // an instance our private BufferContentStream type.
+
+            if (ContentStream is BufferedContentStream bufferedContent)
+            {
+                return bufferedContent.Content;
+            }
+
+            if (ContentStream is null)
+            {
+                return s_EmptyBinaryData;
+            }
+
+            if (ContentStream is MemoryStream memoryStream)
+            {
+                return BufferedContentStream.FromBuffer(memoryStream);
+            }
+
+            BufferedContentStream bufferStream = new();
+            Stream? contentStream = ContentStream;
+
+            if (async)
+            {
+                await contentStream.CopyToAsync(bufferStream, cancellationToken).ConfigureAwait(false);
+#if NET6_0_OR_GREATER
+                await contentStream.DisposeAsync().ConfigureAwait(false);
+#else
+                contentStream.Dispose();
+#endif
+            }
+            else
+            {
+                contentStream.CopyTo(bufferStream, cancellationToken);
+                contentStream.Dispose();
+            }
+
+            bufferStream.Position = 0;
+            ContentStream = bufferStream;
+            return bufferStream.Content;
+        }
+
+        /// <summary>
+        /// Private Stream type to facilitate detecting whether abstract
+        /// ContentStream setter was called in order to invalidate cached
+        /// content returned from Content property.
+        /// </summary>
+        private class BufferedContentStream : MemoryStream
+        {
+            public static BinaryData FromBuffer(MemoryStream stream)
+                => stream.TryGetBuffer(out ArraySegment<byte> segment) ?
+                    new BinaryData(segment.AsMemory()) :
+                    new BinaryData(stream.ToArray());
+
+            public BinaryData Content => FromBuffer(this);
+        }
+
+        #endregion
 
         internal static void DisposeStreamIfNotBuffered(ref Stream? stream)
         {

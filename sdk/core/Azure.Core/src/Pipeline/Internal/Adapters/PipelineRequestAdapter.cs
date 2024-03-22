@@ -9,12 +9,12 @@ using System.Linq;
 
 namespace Azure.Core.Pipeline.Adapters
 {
-    internal class RequestAdapter : PipelineRequest
+    internal class PipelineRequestAdapter : PipelineRequest
     {
         private readonly Request _request;
         private readonly RequestHeadersAdapter _headers;
 
-        public RequestAdapter(Request request)
+        public PipelineRequestAdapter(Request request)
         {
             _request = request;
             _headers = new RequestHeadersAdapter(request);

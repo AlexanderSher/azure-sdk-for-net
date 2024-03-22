@@ -9,7 +9,6 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,7 +17,7 @@ namespace Azure.Core.Pipeline
     /// <summary>
     /// An <see cref="HttpPipelineTransport"/> implementation that uses <see cref="HttpClient"/> as the transport.
     /// </summary>
-    public partial class HttpClientTransport : HttpPipelineTransport, IDisposable
+    public partial class HttpClientTransport
     {
         private sealed class HttpClientTransportRequest : Request
         {
@@ -106,63 +105,6 @@ namespace Azure.Core.Pipeline
                 }
             }
 
-            public HttpRequestMessage BuildRequestMessage(CancellationToken cancellation)
-            {
-                var method = ToHttpClientMethod(Method);
-                var uri = Uri.ToUri();
-                var currentRequest = new HttpRequestMessage(method, uri);
-                var currentContent = Content != null ? new PipelineContentAdapter(Content, cancellation) : null;
-                currentRequest.Content = currentContent;
-#if NETFRAMEWORK
-                currentRequest.Headers.ExpectContinue = false;
-#endif
-                for (int i = 0; i < _headers.Count; i++)
-                {
-                    _headers.GetAt(i, out var headerName, out var value);
-                    switch (value)
-                    {
-                        case string stringValue:
-                            // Authorization is special cased because it is in the hot path for auth polices that set this header on each request and retry.
-                            if (headerName == HttpHeader.Names.Authorization && AuthenticationHeaderValue.TryParse(stringValue, out var authHeader))
-                            {
-                                currentRequest.Headers.Authorization = authHeader;
-                            }
-                            else if (!currentRequest.Headers.TryAddWithoutValidation(headerName, stringValue))
-                            {
-                                if (currentContent != null && !currentContent.Headers.TryAddWithoutValidation(headerName, stringValue))
-                                {
-                                    throw new InvalidOperationException($"Unable to add header {headerName} to header collection.");
-                                }
-                            }
-                            break;
-                        case List<string> listValue:
-                            if (!currentRequest.Headers.TryAddWithoutValidation(headerName, listValue))
-                            {
-                                if (currentContent != null && !currentContent.Headers.TryAddWithoutValidation(headerName, listValue))
-                                {
-                                    throw new InvalidOperationException($"Unable to add header {headerName} to header collection.");
-                                }
-                            }
-                            break;
-                    }
-                }
-
-                AddPropertiesForBlazor(currentRequest);
-
-                return currentRequest;
-            }
-
-            private static void AddPropertiesForBlazor(HttpRequestMessage currentRequest)
-            {
-                // Disable response caching and enable streaming in Blazor apps
-                // see https://github.com/dotnet/aspnetcore/blob/3143d9550014006080bb0def5b5c96608b025a13/src/Components/WebAssembly/WebAssembly/src/Http/WebAssemblyHttpRequestMessageExtensions.cs
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Create("BROWSER")))
-                {
-                    SetPropertiesOrOptions(currentRequest, "WebAssemblyFetchOptions", new Dictionary<string, object> { { "cache", "no-store" } });
-                    SetPropertiesOrOptions(currentRequest, "WebAssemblyEnableStreamingResponse", true);
-                }
-            }
-
             private static string GetHttpHeaderValue(string headerName, object value) => value switch
             {
                 string headerValue => headerValue,
@@ -179,53 +121,6 @@ namespace Azure.Core.Pipeline
                     Content = null;
                     content.Dispose();
                 }
-            }
-
-            public override string ToString() => BuildRequestMessage(default).ToString();
-
-            private static readonly HttpMethod s_patch = new HttpMethod("PATCH");
-
-            private static HttpMethod ToHttpClientMethod(RequestMethod requestMethod)
-            {
-                var method = requestMethod.Method;
-
-                // Fast-path common values
-                if (method.Length == 3)
-                {
-                    if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return HttpMethod.Get;
-                    }
-
-                    if (string.Equals(method, "PUT", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return HttpMethod.Put;
-                    }
-                }
-                else if (method.Length == 4)
-                {
-                    if (string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return HttpMethod.Post;
-                    }
-                    if (string.Equals(method, "HEAD", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return HttpMethod.Head;
-                    }
-                }
-                else
-                {
-                    if (string.Equals(method, "PATCH", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return s_patch;
-                    }
-                    if (string.Equals(method, "DELETE", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return HttpMethod.Delete;
-                    }
-                }
-
-                return new HttpMethod(method);
             }
 
             private readonly struct IgnoreCaseString : IEquatable<IgnoreCaseString>
@@ -249,43 +144,6 @@ namespace Azure.Core.Pipeline
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 public static implicit operator string(IgnoreCaseString ics) => ics._value;
             }
-
-            private sealed class PipelineContentAdapter : HttpContent
-            {
-                private readonly RequestContent _pipelineContent;
-                private readonly CancellationToken _cancellationToken;
-
-                public PipelineContentAdapter(RequestContent pipelineContent, CancellationToken cancellationToken)
-                {
-                    _pipelineContent = pipelineContent;
-                    _cancellationToken = cancellationToken;
-                }
-
-                protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context) => await _pipelineContent.WriteToAsync(stream, _cancellationToken).ConfigureAwait(false);
-
-                protected override bool TryComputeLength(out long length) => _pipelineContent.TryComputeLength(out length);
-
-#if NET5_0_OR_GREATER
-                protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
-                {
-                    await _pipelineContent!.WriteToAsync(stream, cancellationToken).ConfigureAwait(false);
-                }
-
-                protected override void SerializeToStream(Stream stream, TransportContext? context, CancellationToken cancellationToken)
-                {
-                    _pipelineContent.WriteTo(stream, cancellationToken);
-                }
-#endif
-            }
-        }
-
-        private static HttpRequestMessage BuildRequestMessage(HttpMessage message)
-        {
-            if (!(message.Request is HttpClientTransportRequest pipelineRequest))
-            {
-                throw new InvalidOperationException("the request is not compatible with the transport");
-            }
-            return pipelineRequest.BuildRequestMessage(message.CancellationToken);
         }
 
         internal static bool TryGetHeader(HttpHeaders headers, HttpContent? content, string name, [NotNullWhen(true)] out string? value)
