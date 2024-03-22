@@ -26,7 +26,10 @@ namespace Azure.Core.Pipeline.Adapters
 
         private async ValueTask ProcessSyncOrAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline, bool async)
         {
-            var policyPipeline = new PipelinePolicy[] { new HttpPipelinePolicyCallback(message, pipeline) };
+            var policyPipeline = pipeline.Length > 0
+                ? new PipelinePolicy[] { new HttpPipelinePolicyCallback(message, pipeline) }
+                : Array.Empty<PipelinePolicy>();
+
             try
             {
                 if (async)

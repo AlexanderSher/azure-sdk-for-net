@@ -99,7 +99,8 @@ public partial class HttpClientPipelineTransport
 
             if (request.Headers is not ArrayBackedRequestHeaders headers)
             {
-                throw new InvalidOperationException($"Invalid type for request.Headers: '{request.Headers?.GetType()}'.");
+                return httpRequest;
+                //throw new InvalidOperationException($"Invalid type for request.Headers: '{request.Headers?.GetType()}'.");
             }
 
             int i = 0;

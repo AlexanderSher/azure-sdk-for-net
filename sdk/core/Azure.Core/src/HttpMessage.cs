@@ -32,7 +32,6 @@ namespace Azure.Core
             Argument.AssertNotNull(request, nameof(Request));
             Request = request;
             ResponseClassifier = responseClassifier;
-            BufferResponse = true;
             _pipelineMessage = new PipelineMessageAdapter(this);
         }
 
@@ -86,13 +85,21 @@ namespace Azure.Core
         /// <summary>
         /// Gets or sets the value indicating if response would be buffered as part of the pipeline. Defaults to true.
         /// </summary>
-        public bool BufferResponse { get; set; }
+        public bool BufferResponse
+        {
+            get => _pipelineMessage.BufferResponse;
+            set => _pipelineMessage.BufferResponse = value;
+        }
 
         /// <summary>
         /// Gets or sets the network timeout value for this message. If <c>null</c> the value provided in <see cref="RetryOptions.NetworkTimeout"/> would be used instead.
         /// Defaults to <c>null</c>.
         /// </summary>
-        public TimeSpan? NetworkTimeout { get; set; }
+        public TimeSpan? NetworkTimeout
+        {
+            get => _pipelineMessage.NetworkTimeout;
+            set => _pipelineMessage.NetworkTimeout = value;
+        }
 
         internal int RetryNumber { get; set; }
 

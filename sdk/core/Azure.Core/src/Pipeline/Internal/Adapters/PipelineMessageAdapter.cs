@@ -13,6 +13,7 @@ namespace Azure.Core.Pipeline.Adapters
             : base(new PipelineRequestAdapter(azureCorePipeline.Request))
         {
             _azureCoreMessage = azureCorePipeline;
+            NetworkTimeout = ClientOptions.DefaultNetworkTimeout;
         }
 
         public static HttpMessage GetHttpMessage(PipelineMessage message, string? errorMessage = default)
