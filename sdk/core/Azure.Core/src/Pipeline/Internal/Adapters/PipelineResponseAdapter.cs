@@ -23,6 +23,8 @@ namespace Azure.Core.Pipeline.Adapters
 
         public override int Status => _response.Status;
         public override string ReasonPhrase => _response.ReasonPhrase;
+        public override bool IsError => _response.IsError;
+
         protected override PipelineResponseHeaders HeadersCore { get; }
 
         public override Stream? ContentStream

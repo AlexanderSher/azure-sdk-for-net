@@ -25,9 +25,9 @@ namespace Azure.Core.Pipeline.Adapters
             return pipelineMessageAdapter._azureCoreMessage;
         }
 
-        public void SetResponse(Response value)
+        public void SetResponse(Response? value)
         {
-            Response = new PipelineResponseAdapter(value);
+            Response = value is null ? null : new PipelineResponseAdapter(value);
         }
     }
 }
